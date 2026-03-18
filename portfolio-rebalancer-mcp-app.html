@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portfolio Rebalancer · MCP App</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c22;
+    --border: #232830;
+    --border2: #2e3540;
+    --accent: #00e5a0;
+    --accent2: #0096ff;
+    --warn: #ff6b35;
+    --text: #e8edf5;
+    --text2: #8a95a8;
+    --text3: #4a5568;
+    --gain: #00e5a0;
+    --loss: #ff4d6d;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+    --radius: 12px;
+    --radius-sm: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blobs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,160,0.06) 0%, transparent 70%);
+    top: -200px; left: -200px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow2 {
+    position: fixed;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,150,255,0.05) 0%, transparent 70%);
+    bottom: -150px; right: -150px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-left {}
+  .mcp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.2);
+    padding: 3px 10px;
+    border-radius: 100px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .mcp-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform: scale(1); }
+    50% { opacity:0.5; transform: scale(0.8); }
+  }
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(24px, 4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--text);
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Grid layout ── */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .full-col { grid-column: 1 / -1; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--border2); }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ── Holdings table ── */
+  .holdings-table { width: 100%; border-collapse: collapse; }
+  .holdings-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+    text-align: left;
+    padding: 0 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .holdings-table th:last-child { text-align: right; }
+  .holdings-table td {
+    padding: 10px 8px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .holdings-table tr:last-child td { border-bottom: none; }
+  .ticker {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .ticker-name {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+  }
+  .pct-bar-cell { min-width: 100px; }
+  .pct-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .pct-bar-bg {
+    flex: 1; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .pct-bar-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--accent);
+    transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  }
+  .pct-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    min-width: 38px;
+    text-align: right;
+  }
+  .value-cell {
+    font-family: var(--mono);
+    font-size: 13px;
+    text-align: right;
+    color: var(--text);
+  }
+
+  /* ── Allocation inputs ── */
+  .alloc-grid { display: flex; flex-direction: column; gap: 12px; }
+  .alloc-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 60px 36px;
+    align-items: center;
+    gap: 10px;
+  }
+  .alloc-ticker {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .alloc-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border2);
+    outline: none;
+    cursor: pointer;
+  }
+  .alloc-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(0,229,160,0.4);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .alloc-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
+  .alloc-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 4px 8px;
+    width: 100%;
+    text-align: right;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .alloc-input:focus { border-color: var(--accent); }
+  .remove-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text3);
+    font-size: 16px;
+    width: 36px; height: 32px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .remove-btn:hover { border-color: var(--loss); color: var(--loss); background: rgba(255,77,109,0.06); }
+
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .total-label { font-family: var(--mono); font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .total-pct {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .total-ok { color: var(--gain); }
+  .total-bad { color: var(--loss); }
+
+  /* ── Add asset ── */
+  .add-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .field-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field-input:focus { border-color: var(--accent2); }
+  .field-input::placeholder { color: var(--text3); }
+
+  /* ── Buttons ── */
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0c10;
+  }
+  .btn-primary:hover { background: #00ffb3; box-shadow: 0 0 20px rgba(0,229,160,0.3); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--border2); background: var(--border); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.2);
+    font-size: 12px;
+    padding: 6px 14px;
+  }
+  .btn-ghost:hover { background: rgba(0,229,160,0.06); border-color: var(--accent); }
+
+  /* ── Settings row ── */
+  .settings-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 500px) { .settings-row { grid-template-columns: 1fr 1fr; } }
+  .field-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+  .field-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a5568'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+  .field-select:focus { border-color: var(--accent2); }
+
+  /* ── AI Panel ── */
+  .ai-panel {
+    background: linear-gradient(135deg, rgba(0,229,160,0.04) 0%, rgba(0,150,255,0.04) 100%);
+    border: 1px solid rgba(0,229,160,0.15);
+  }
+  .ai-thinking {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    padding: 8px 0;
+  }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,229,160,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ai-output {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    min-height: 80px;
+  }
+
+  /* ── Trades table ── */
+  .trades-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .trades-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+    text-align: left;
+    padding: 0 10px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trades-table td {
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trades-table tr:last-child td { border-bottom: none; }
+  .trade-buy {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--gain);
+    font-weight: 500;
+  }
+  .trade-sell {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--loss);
+    font-weight: 500;
+  }
+  .trade-amount-pos { color: var(--gain); }
+  .trade-amount-neg { color: var(--loss); }
+  .impact-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-family: var(--mono);
+  }
+  .impact-high { background: rgba(255,77,109,0.12); color: var(--loss); }
+  .impact-med  { background: rgba(255,107,53,0.12); color: var(--warn); }
+  .impact-low  { background: rgba(0,229,160,0.10); color: var(--gain); }
+
+  /* ── Summary metrics ── */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 600px) { .metrics-row { grid-template-columns: repeat(2, 1fr); } }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+  }
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .metric-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 3px;
+  }
+
+  /* ── MCP log ── */
+  .mcp-log {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+  .log-entry { display: flex; gap: 10px; }
+  .log-time { color: var(--text3); flex-shrink: 0; }
+  .log-dir-in  { color: var(--accent2); flex-shrink: 0; }
+  .log-dir-out { color: var(--accent); flex-shrink: 0; }
+  .log-text { color: var(--text2); }
+  .log-method { color: var(--text); }
+
+  /* ── Donut chart ── */
+  .chart-wrap {
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  }
+  .donut-svg { flex-shrink: 0; }
+  .legend { display: flex; flex-direction: column; gap: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .legend-name { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .legend-pct  { font-family: var(--mono); font-size: 11px; color: var(--text); margin-left: auto; min-width: 36px; text-align: right; }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px; background: var(--border); margin: 20px 0;
+  }
+
+  /* Transition */
+  .fade-in {
+    animation: fadeIn 0.4s ease both;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="glow2"></div>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="mcp-badge">MCP App · ui://portfolio/rebalancer</div>
+      <h1>Portfolio <span>Rebalancer</span></h1>
+      <div class="subtitle">// AI-powered allocation analysis via MCP JSON-RPC</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;padding-top:8px;">
+      <button class="btn btn-ghost" onclick="loadSamplePortfolio()">Load Sample</button>
+      <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">Analyze Portfolio →</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card full-col" style="margin-bottom:20px;">
+    <div class="settings-row">
+      <div>
+        <div class="field-label">Portfolio Value ($)</div>
+        <input class="field-input" type="number" id="portfolioValue" value="125000" step="1000" />
+      </div>
+      <div>
+        <div class="field-label">Risk Profile</div>
+        <select class="field-select" id="riskProfile">
+          <option value="conservative">Conservative</option>
+          <option value="moderate" selected>Moderate</option>
+          <option value="aggressive">Aggressive</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Tax Strategy</div>
+        <select class="field-select" id="taxStrategy">
+          <option value="tax_aware" selected>Tax-Aware</option>
+          <option value="ignore">Ignore Taxes</option>
+          <option value="tax_loss_harvest">TLH Focus</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Current Holdings -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Current Holdings</div>
+        <button class="btn btn-ghost" onclick="addHoldingMode()" style="font-size:11px;padding:5px 12px;">+ Add</button>
+      </div>
+      <table class="holdings-table" id="holdingsTable">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th class="pct-bar-cell">Current %</th>
+            <th style="text-align:right">Value</th>
+          </tr>
+        </thead>
+        <tbody id="holdingsTbody"></tbody>
+      </table>
+      <div id="addHoldingRow" style="display:none; margin-top:14px;">
+        <div class="add-row">
+          <input class="field-input" id="newTicker" placeholder="TICKER" style="text-transform:uppercase;" />
+          <input class="field-input" id="newValue" placeholder="Value ($)" type="number" />
+          <button class="btn btn-secondary" onclick="commitAddHolding()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Allocation -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Target Allocation</div>
+        <div id="totalPctDisplay" class="total-pct total-ok">100%</div>
+      </div>
+      <div class="alloc-grid" id="allocGrid"></div>
+      <div class="total-row">
+        <span class="total-label">Total Allocated</span>
+        <span id="totalPct2" class="total-pct total-ok">100%</span>
+      </div>
+    </div>
+
+    <!-- Allocation Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Allocation Split</div>
+        <select class="field-select" id="chartMode" onchange="renderChart()" style="width:auto;font-size:11px;padding:4px 24px 4px 8px;">
+          <option value="current">Current</option>
+          <option value="target">Target</option>
+        </select>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <svg class="donut-svg" id="donutSvg" viewBox="0 0 140 140" width="140" height="140"></svg>
+        <div class="legend" id="chartLegend"></div>
+      </div>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Portfolio Metrics</div>
+      </div>
+      <div class="metrics-row" id="metricsRow">
+        <div class="metric-card">
+          <div class="metric-label">Total Value</div>
+          <div class="metric-value" id="m-total">$125,000</div>
+          <div class="metric-sub">portfolio</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Drift Score</div>
+          <div class="metric-value" id="m-drift" style="color:var(--warn)">—</div>
+          <div class="metric-sub">vs target</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Assets</div>
+          <div class="metric-value" id="m-assets">0</div>
+          <div class="metric-sub">positions</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Status</div>
+          <div class="metric-value" id="m-status" style="font-size:13px;color:var(--text2)">Draft</div>
+          <div class="metric-sub">rebalance state</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Analysis -->
+    <div class="card ai-panel full-col fade-in" id="aiCard" style="display:none;">
+      <div class="card-header">
+        <div class="card-title">AI Analysis · Claude</div>
+        <span id="aiStatus" class="mcp-badge" style="margin:0;font-size:9px;">PROCESSING</span>
+      </div>
+      <div id="aiOutput" class="ai-output"></div>
+    </div>
+
+    <!-- Recommended Trades -->
+    <div class="card full-col fade-in" id="tradesCard" style="display:none;">
+      <div class="card-header">
+        <div class="card-title">Recommended Trades</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="exportTrades()" style="font-size:11px;">Export CSV</button>
+          <button class="btn btn-primary" onclick="applyTrades()" style="font-size:12px;padding:6px 16px;">Apply All →</button>
+        </div>
+      </div>
+      <table class="trades-table" id="tradesTable">
+        <thead>
+          <tr>
+            <th>Action</th><th>Asset</th><th>Shares (est.)</th>
+            <th>Amount</th><th>From → To</th><th>Impact</th>
+          </tr>
+        </thead>
+        <tbody id="tradesTbody"></tbody>
+      </table>
+    </div>
+
+    <!-- MCP Protocol Log -->
+    <div class="card full-col">
+      <div class="card-header">
+        <div class="card-title">MCP JSON-RPC Log</div>
+        <button class="btn btn-ghost" onclick="clearLog()" style="font-size:10px;padding:4px 10px;">Clear</button>
+      </div>
+      <div class="mcp-log" id="mcpLog">
+        <div class="log-entry">
+          <span class="log-time">00:00:00</span>
+          <span class="log-dir-in">◀ HOST</span>
+          <span class="log-text">MCP App initialized · resource: <span class="log-method">ui://portfolio/rebalancer</span></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const COLORS = ['#00e5a0','#0096ff','#ff6b35','#b56fff','#ffd60a','#ff4d6d','#00d4ff','#7bed9f','#eccc68','#ff6348'];
+
+let holdings = [];
+let targets  = {};
+let trades   = [];
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function loadSamplePortfolio() {
+  holdings = [
+    { ticker:'AAPL', name:'Apple Inc.',     value: 22000 },
+    { ticker:'MSFT', name:'Microsoft Corp.',value: 18500 },
+    { ticker:'VTI',  name:'Vanguard Total', value: 32000 },
+    { ticker:'BND',  name:'Vanguard Bonds', value: 15000 },
+    { ticker:'QQQ',  name:'Invesco QQQ',    value: 14000 },
+    { ticker:'GLD',  name:'SPDR Gold',      value:  8000 },
+    { ticker:'TSLA', name:'Tesla Inc.',     value:  7500 },
+    { ticker:'AMZN', name:'Amazon.com',     value:  8000 },
+  ];
+  document.getElementById('portfolioValue').value = holdings.reduce((s,h)=>s+h.value, 0);
+  targets = { AAPL:15, MSFT:15, VTI:25, BND:15, QQQ:12, GLD:8, TSLA:5, AMZN:5 };
+  render();
+  mcpLog('◀ HOST','tools/call','{"name":"load_portfolio","input":{"preset":"sample_moderate"}}');
+  mcpLog('▶ SERVER','tools/result','{"status":"ok","holdings":'+holdings.length+',"value":125000}');
+}
+
+function render() {
+  renderHoldings();
+  renderAlloc();
+  renderChart();
+  updateMetrics();
+}
+
+// ── Holdings ───────────────────────────────────────────────────────────────
+function renderHoldings() {
+  const total = holdings.reduce((s,h)=>s+h.value,0);
+  const tbody = document.getElementById('holdingsTbody');
+  tbody.innerHTML = holdings.map((h,i)=>{
+    const pct = total>0 ? (h.value/total*100).toFixed(1) : 0;
+    const col = COLORS[i%COLORS.length];
+    return `<tr>
+      <td><div class="ticker">${h.ticker}</div><div class="ticker-name">${h.name}</div></td>
+      <td class="pct-bar-cell">
+        <div class="pct-bar-wrap">
+          <div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+          <span class="pct-val">${pct}%</span>
+        </div>
+      </td>
+      <td class="value-cell">$${h.value.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Target Allocation ──────────────────────────────────────────────────────
+function renderAlloc() {
+  const grid = document.getElementById('allocGrid');
+  grid.innerHTML = holdings.map((h,i)=>{
+    const val = targets[h.ticker] ?? Math.round(100/holdings.length);
+    if (!(h.ticker in targets)) targets[h.ticker] = val;
+    const col = COLORS[i%COLORS.length];
+    return `<div class="alloc-row">
+      <div class="alloc-ticker">${h.ticker}</div>
+      <input type="range" class="alloc-slider" min="0" max="100" step="0.5"
+        value="${val}" style="accent-color:${col}"
+        oninput="updateTarget('${h.ticker}',+this.value,this)" />
+      <input type="number" class="alloc-input" min="0" max="100" step="0.5"
+        value="${val}" id="tgt-${h.ticker}"
+        oninput="updateTarget('${h.ticker}',+this.value,null,this)" />
+      <button class="remove-btn" onclick="removeHolding('${h.ticker}')">×</button>
+    </div>`;
+  }).join('');
+  updateTotalPct();
+}
+
+function updateTarget(ticker, val, slider, numInput) {
+  targets[ticker] = val;
+  const inp = document.getElementById('tgt-'+ticker);
+  if (inp && !numInput) inp.value = val.toFixed(1);
+  if (numInput && slider) {
+    const row = numInput.closest('.alloc-row');
+    if (row) { const sl = row.querySelector('.alloc-slider'); if(sl) sl.value = val; }
+  }
+  updateTotalPct();
+}
+
+function updateTotalPct() {
+  const total = Object.values(targets).reduce((s,v)=>s+v,0);
+  const d1 = document.getElementById('totalPctDisplay');
+  const d2 = document.getElementById('totalPct2');
+  const str = total.toFixed(1)+'%';
+  const cls = Math.abs(total-100)<0.5 ? 'total-pct total-ok' : 'total-pct total-bad';
+  d1.textContent = str; d1.className = cls;
+  d2.textContent = str; d2.className = cls;
+  return total;
+}
+
+// ── Add/Remove ─────────────────────────────────────────────────────────────
+function addHoldingMode() {
+  const row = document.getElementById('addHoldingRow');
+  row.style.display = row.style.display==='none' ? 'block' : 'none';
+}
+function commitAddHolding() {
+  const t = document.getElementById('newTicker').value.trim().toUpperCase();
+  const v = parseFloat(document.getElementById('newValue').value);
+  if (!t || isNaN(v)) return;
+  if (holdings.find(h=>h.ticker===t)) { alert(`${t} already in portfolio`); return; }
+  holdings.push({ticker:t, name:t, value:v});
+  targets[t] = 0;
+  document.getElementById('newTicker').value='';
+  document.getElementById('newValue').value='';
+  document.getElementById('addHoldingRow').style.display='none';
+  document.getElementById('portfolioValue').value = holdings.reduce((s,h)=>s+h.value,0);
+  render();
+  mcpLog('▶ SERVER','resources/updated','{"uri":"ui://portfolio/rebalancer","event":"holding_added","ticker":"'+t+'"}');
+}
+function removeHolding(ticker) {
+  holdings = holdings.filter(h=>h.ticker!==ticker);
+  delete targets[ticker];
+  render();
+}
+
+// ── Chart ──────────────────────────────────────────────────────────────────
+function renderChart() {
+  const mode = document.getElementById('chartMode').value;
+  const total = holdings.reduce((s,h)=>s+h.value,0);
+  const data = holdings.map((h,i)=>{
+    const pct = mode==='current'
+      ? (total>0 ? h.value/total*100 : 0)
+      : (targets[h.ticker]||0);
+    return { ticker:h.ticker, pct, color: COLORS[i%COLORS.length] };
+  });
+
+  const svg = document.getElementById('donutSvg');
+  const cx=70, cy=70, r=55, ir=36;
+  let angle = -Math.PI/2;
+  let paths = '';
+  data.forEach(d=>{
+    const sweep = d.pct/100 * Math.PI*2;
+    if (sweep < 0.001) return;
+    const x1=cx+r*Math.cos(angle), y1=cy+r*Math.sin(angle);
+    angle+=sweep;
+    const x2=cx+r*Math.cos(angle), y2=cy+r*Math.sin(angle);
+    const xi1=cx+ir*Math.cos(angle-sweep), yi1=cy+ir*Math.sin(angle-sweep);
+    const xi2=cx+ir*Math.cos(angle), yi2=cy+ir*Math.sin(angle);
+    const large=sweep>Math.PI?1:0;
+    paths+=`<path d="M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${xi2.toFixed(2)},${yi2.toFixed(2)} A${ir},${ir} 0 ${large},0 ${xi1.toFixed(2)},${yi1.toFixed(2)} Z" fill="${d.color}" opacity="0.9"/>`;
+  });
+  svg.innerHTML = paths + `<text x="70" y="66" text-anchor="middle" fill="#e8edf5" font-family="DM Mono,monospace" font-size="11" font-weight="500">${mode==='current'?'Current':'Target'}</text><text x="70" y="80" text-anchor="middle" fill="#8a95a8" font-family="DM Mono,monospace" font-size="9">alloc</text>`;
+
+  const leg = document.getElementById('chartLegend');
+  leg.innerHTML = data.map(d=>`<div class="legend-item"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-name">${d.ticker}</span><span class="legend-pct">${d.pct.toFixed(1)}%</span></div>`).join('');
+}
+
+// ── Metrics ────────────────────────────────────────────────────────────────
+function updateMetrics() {
+  const total = holdings.reduce((s,h)=>s+h.value,0);
+  document.getElementById('m-total').textContent = '$'+total.toLocaleString();
+  document.getElementById('m-assets').textContent = holdings.length;
+  // drift = sum |current% - target%|
+  let drift = 0;
+  holdings.forEach(h=>{
+    const cur = total>0? h.value/total*100 : 0;
+    const tgt = targets[h.ticker]||0;
+    drift += Math.abs(cur-tgt);
+  });
+  const driftEl = document.getElementById('m-drift');
+  driftEl.textContent = drift.toFixed(1)+'%';
+  driftEl.style.color = drift<5 ? 'var(--gain)' : drift<15 ? 'var(--warn)' : 'var(--loss)';
+}
+
+// ── Analysis ───────────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+
+  const total = parseFloat(document.getElementById('portfolioValue').value)||125000;
+  const risk  = document.getElementById('riskProfile').value;
+  const tax   = document.getElementById('taxStrategy').value;
+
+  // Show AI card
+  const aiCard = document.getElementById('aiCard');
+  aiCard.style.display = 'block';
+  document.getElementById('aiOutput').innerHTML = '<div class="ai-thinking"><div class="spinner"></div>Calling tools/call → analyze_portfolio…</div>';
+  document.getElementById('aiStatus').textContent = 'PROCESSING';
+  document.getElementById('tradesCard').style.display = 'none';
+
+  // Build prompt
+  const curAllocs = holdings.map(h=>({
+    ticker: h.ticker,
+    current_value: h.value,
+    current_pct: (h.value/total*100).toFixed(2),
+    target_pct: targets[h.ticker]||0,
+    drift_pct: ((h.value/total*100)-(targets[h.ticker]||0)).toFixed(2)
+  }));
+
+  mcpLog('◀ HOST','tools/call','{"name":"analyze_portfolio","input":{"portfolio_value":'+total+',"risk":"'+risk+'"}}');
+
+  const prompt = `You are a professional portfolio manager AI. Analyze this portfolio rebalancing request.
+
+Portfolio Value: $${total.toLocaleString()}
+Risk Profile: ${risk}
+Tax Strategy: ${tax}
+
+Current vs Target Allocations:
+${JSON.stringify(curAllocs, null, 2)}
+
+Provide:
+1. A concise executive summary (2-3 sentences) of the portfolio's current state and drift
+2. Key observations about the largest drift positions
+3. Rebalancing urgency assessment
+4. 3-5 specific trade recommendations as a JSON array with this exact format at the end of your response:
+
+TRADES_JSON:
+[{"ticker":"AAPL","action":"BUY","amount_usd":1200,"from_pct":12.5,"to_pct":15.0,"impact":"LOW"},...]
+
+Actions: BUY or SELL. Impact: HIGH (>5% portfolio), MED (2-5%), LOW (<2%).
+Keep the narrative section concise and professional. End with the TRADES_JSON block.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages:[{ role:'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.map(b=>b.text||'').join('') || 'No response';
+
+    mcpLog('▶ SERVER','tools/result','{"status":"ok","analysis_length":'+text.length+'}');
+
+    // Parse trades JSON
+    const tradesMatch = text.match(/TRADES_JSON:\s*(\[[\s\S]*?\])/);
+    const narrative   = text.replace(/TRADES_JSON:[\s\S]*$/, '').trim();
+
+    document.getElementById('aiOutput').textContent = narrative;
+    document.getElementById('aiStatus').textContent = 'COMPLETE';
+
+    if (tradesMatch) {
+      try {
+        trades = JSON.parse(tradesMatch[1]);
+        renderTrades(trades, total);
+        document.getElementById('tradesCard').style.display = 'block';
+        mcpLog('▶ SERVER','resources/updated','{"uri":"ui://portfolio/rebalancer","event":"trades_ready","count":'+trades.length+'}');
+        document.getElementById('m-status').textContent = 'Pending';
+        document.getElementById('m-status').style.color = 'var(--warn)';
+      } catch(e) { /* no trades parsed */ }
+    }
+
+  } catch(err) {
+    document.getElementById('aiOutput').textContent = '⚠ API error: '+err.message+'\n\nEnsure the Claude API is accessible from this MCP App context.';
+    document.getElementById('aiStatus').textContent = 'ERROR';
+    mcpLog('▶ SERVER','error','{"code":-32603,"message":"'+err.message+'"}');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Analyze Portfolio →';
+  updateMetrics();
+}
+
+// ── Trades ─────────────────────────────────────────────────────────────────
+function renderTrades(trades, portfolioValue) {
+  const tbody = document.getElementById('tradesTbody');
+  tbody.innerHTML = trades.map(t=>{
+    const isBuy = t.action==='BUY';
+    const estShares = (t.amount_usd/100).toFixed(1); // rough
+    const impactClass = t.impact==='HIGH' ? 'impact-high' : t.impact==='MED' ? 'impact-med' : 'impact-low';
+    return `<tr>
+      <td><span class="${isBuy?'trade-buy':'trade-sell'}">${isBuy?'▲ BUY':'▼ SELL'}</span></td>
+      <td><span class="ticker">${t.ticker}</span></td>
+      <td style="color:var(--text2)">~${estShares}</td>
+      <td class="${isBuy?'trade-amount-pos':'trade-amount-neg'}">${isBuy?'+':'-'}$${Math.abs(t.amount_usd).toLocaleString()}</td>
+      <td style="color:var(--text2);font-family:var(--mono);font-size:12px;">${t.from_pct}% → ${t.to_pct}%</td>
+      <td><span class="impact-pill ${impactClass}">${t.impact}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function applyTrades() {
+  const total = holdings.reduce((s,h)=>s+h.value,0);
+  trades.forEach(t=>{
+    const h = holdings.find(x=>x.ticker===t.ticker);
+    if (h) {
+      if (t.action==='BUY')  h.value += t.amount_usd;
+      if (t.action==='SELL') h.value -= t.amount_usd;
+    }
+  });
+  trades = [];
+  document.getElementById('tradesCard').style.display = 'none';
+  document.getElementById('m-status').textContent = 'Rebalanced';
+  document.getElementById('m-status').style.color = 'var(--gain)';
+  render();
+  mcpLog('◀ HOST','tools/call','{"name":"apply_trades","input":{"confirm":true}}');
+  mcpLog('▶ SERVER','tools/result','{"status":"ok","message":"Portfolio rebalanced successfully"}');
+}
+
+function exportTrades() {
+  const csv = ['Action,Ticker,Amount USD,From %,To %,Impact',
+    ...trades.map(t=>`${t.action},${t.ticker},${t.amount_usd},${t.from_pct},${t.to_pct},${t.impact}`)
+  ].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='rebalance_trades.csv'; a.click();
+  URL.revokeObjectURL(url);
+  mcpLog('◀ HOST','resources/read','{"uri":"ui://portfolio/rebalancer/trades.csv"}');
+}
+
+// ── MCP Log ────────────────────────────────────────────────────────────────
+function mcpLog(dir, method, payload) {
+  const log = document.getElementById('mcpLog');
+  const t = new Date();
+  const ts = [t.getHours(),t.getMinutes(),t.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+  const isIn = dir.includes('HOST');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${ts}</span><span class="${isIn?'log-dir-in':'log-dir-out'}">${dir}</span><span class="log-text"><span class="log-method">${method}</span> ${payload.length>60?payload.slice(0,60)+'…':payload}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('mcpLog').innerHTML = '';
+  mcpLog('◀ HOST','notifications/initialized','{"protocolVersion":"2024-11-05","capabilities":{"ui":true}}');
+}
+
+// ── postMessage bridge (MCP App host simulation) ───────────────────────────
+window.addEventListener('message', (evt) => {
+  // Handle incoming MCP JSON-RPC messages from parent host
+  try {
+    const msg = typeof evt.data==='string' ? JSON.parse(evt.data) : evt.data;
+    if (msg && msg.jsonrpc==='2.0') {
+      mcpLog('◀ HOST', msg.method||'response', JSON.stringify(msg.params||msg.result||{}).slice(0,80));
+      // Handle tool calls from host
+      if (msg.method==='tools/call' && msg.params?.name==='load_portfolio') {
+        loadSamplePortfolio();
+      }
+    }
+  } catch(_) {}
+});
+
+// Announce readiness to parent host (MCP App pattern)
+window.parent.postMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 1,
+  method: 'notifications/initialized',
+  params: { appUri: 'ui://portfolio/rebalancer', version: '1.0.0', capabilities: ['tools', 'resources'] }
+}), '*');
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+loadSamplePortfolio();
+</script>
+</body>
+</html>
